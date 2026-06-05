@@ -15,6 +15,7 @@ from .embeddings import (
     OpenAIEmbedder,
     _mock_embed,
 )
+from .llm import GEMINI_CHAT_MODEL, OPENAI_CHAT_MODEL, GeminiChatLLM, MockLLM, OpenAIChatLLM
 from .models import Document
 from .store import EmbeddingStore
 
@@ -30,8 +31,13 @@ __all__ = [
     "MockEmbedder",
     "LocalEmbedder",
     "OpenAIEmbedder",
+    "MockLLM",
+    "OpenAIChatLLM",
+    "GeminiChatLLM",
     "_mock_embed",
     "LOCAL_EMBEDDING_MODEL",
     "OPENAI_EMBEDDING_MODEL",
+    "OPENAI_CHAT_MODEL",
+    "GEMINI_CHAT_MODEL",
     "EMBEDDING_PROVIDER_ENV",
 ]

@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Disease Knowledge Chatbot</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='chat.css') }}">
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div class="hero-copy">
+        <span class="eyebrow">RAG Demo</span>
+        <h1>Disease Knowledge Chatbot</h1>
+        <p>Ask a question about the loaded disease documents. The assistant retrieves relevant chunks first, then answers from that context.</p>
+      </div>
+      <div class="status-card">
+        <div class="status-row">
+          <span class="label">Collection</span>
+          <span class="value">{{ collection }}</span>
+        </div>
+        <div class="status-row">
+          <span class="label">Stored records</span>
+          <span class="value">{{ stored_records }}</span>
+        </div>
+        <div class="status-row">
+          <span class="label">Embeddings</span>
+          <span class="value">{{ embedding_backend }}</span>
+        </div>
+        <div class="status-row">
+          <span class="label">LLM</span>
+          <span class="value">{{ llm_backend }}</span>
+        </div>
+        <div class="status-row">
+          <span class="label">Persist dir</span>
+          <span class="value">{{ persist_dir }}</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="chat-layout">
+      <div class="chat-panel">
+        {% if startup_error %}
+        <div class="startup-error">
+          <strong>Configuration error:</strong> {{ startup_error }}
+        </div>
+        {% endif %}
+        <div id="messages" class="messages">
+          <article class="message bot">
+            <div class="avatar">KB</div>
+            <div class="bubble">
+              Ask about diseases like <strong>coloboma</strong>, <strong>Knobloch syndrome</strong>, or <strong>spinocerebellar ataxia type 3</strong>.
+            </div>
+          </article>
+        </div>
+
+        <form id="chat-form" class="composer">
+          <label class="sr-only" for="question">Question</label>
+          <textarea id="question" name="question" rows="3" placeholder="Type your question here..."></textarea>
+          <div class="composer-actions">
+            <button type="submit">Send question</button>
+          </div>
+        </form>
+      </div>
+
+      <aside class="sources-panel">
+        <div class="sources-header">
+          <h2>Retrieved Sources</h2>
+          <p>Top matching chunks used for the answer.</p>
+        </div>
+        <div id="sources" class="sources-list">
+          <div class="empty-state">Sources will appear here after the first question.</div>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    const form = document.getElementById("chat-form");
+    const input = document.getElementById("question");
+    const messages = document.getElementById("messages");
+    const sources = document.getElementById("sources");
+
+    function appendMessage(role, content, pending = false) {
+      const article = document.createElement("article");
+      article.className = `message ${role}`;
+
+      const avatar = document.createElement("div");
+      avatar.className = "avatar";
+      avatar.textContent = role === "user" ? "You" : "KB";
+
+      const bubble = document.createElement("div");
+      bubble.className = `bubble${pending ? " pending" : ""}`;
+      bubble.textContent = content;
+
+      article.appendChild(avatar);
+      article.appendChild(bubble);
+      messages.appendChild(article);
+      messages.scrollTop = messages.scrollHeight;
+      return bubble;
+    }
+
+    function renderSources(items) {
+      sources.innerHTML = "";
+      if (!items.length) {
+        sources.innerHTML = '<div class="empty-state">No sources returned.</div>';
+        return;
+      }
+
+      items.forEach((item, index) => {
+        const card = document.createElement("article");
+        card.className = "source-card";
+        const score = typeof item.score === "number" ? item.score.toFixed(4) : "n/a";
+        card.innerHTML = `
+          <div class="source-top">
+            <span class="source-rank">#${index + 1}</span>
+            <span class="source-score">score ${score}</span>
+          </div>
+          <h3>${item.disease || "Unknown disease"}</h3>
+          <p class="meta">${item.source_file || "unknown file"}${item.chunk_index !== null && item.chunk_index !== undefined ? ` · chunk ${item.chunk_index}` : ""}</p>
+          <p class="preview">${item.preview || ""}...</p>
+        `;
+        sources.appendChild(card);
+      });
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const question = input.value.trim();
+      if (!question) {
+        return;
+      }
+
+      appendMessage("user", question);
+      input.value = "";
+      const pendingBubble = appendMessage("bot", "Thinking...", true);
+
+      try {
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question }),
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Request failed.");
+        }
+
+        pendingBubble.classList.remove("pending");
+        pendingBubble.textContent = data.answer;
+        renderSources(data.sources || []);
+      } catch (error) {
+        pendingBubble.classList.remove("pending");
+        pendingBubble.textContent = `Error: ${error.message}`;
+        renderSources([]);
+      }
+    });
+  </script>
+</body>
+</html>
